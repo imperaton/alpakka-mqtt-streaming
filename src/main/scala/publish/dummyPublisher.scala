@@ -26,6 +26,8 @@ object dummyPublisher extends App {
 
   /* **** TCP-Connection ***********************************************************/
   // Uncomment to use tcp connection
+  //
+  // Use the standard Tcp flow which is ByteString --> ByteString
   /* val connection = Tcp().outgoingConnection("127.0.0.1", 1883)
   // Create the flow `mqttFlow` which take a mqtt-command as input and responds with an event.
   val mqttFlow: Flow[Command[Nothing], Either[MqttCodec.DecodeError, Event[Nothing]],
@@ -37,6 +39,35 @@ object dummyPublisher extends App {
 
   /* **** Websocket-Connection *****************************************************/
   // Uncomment to use websocket connection
+  //
+  // In Order to obtain the websockets ByteString --> ByteString flow we have to combine multiple layers:
+  //     1. akka-http provides `webSocketClientLayer` which is bidirectional flow of the follwing form
+  //                        +-------+
+  //         ws.Message   ~>|       |~> SslTlsOutbound
+  //                        |  (1)  |
+  //         ws.Message   <~|       |<~ SslTlsInbound
+  //                        +-------+
+  //
+  //    2. akka-streams provides an ssl layer
+  //                        +-------+
+  //       SslTlsOutbound ~>|       |~> ByteString
+  //                        |  (2)  |
+  //        SslTlsInbound <~|       |<~ ByteString
+  //                        +-------+
+  //
+  //    3. The standard tcp flow is
+  //                        +-------+
+  //           ByteString ~>|  (3)  |~> ByteString
+  //                        +-------+
+  //
+  //    By adding one more bidirectional layer which translates ByteStrings to ws.Messages (and the other
+  //    way around we get a flow ByteString --> ByteString)
+  //
+  //                     +--+                +---+                    +---+                +---+
+  //        ByteString ~>|  |~> ws.Message ~>|   |~> SslTlsOutbound ~>|   |~> ByteString ~>|   |
+  //                     |  |                |(1)|                    |(2)|                |(3)|
+  //        ByteString <~|  |<~ ws.Message <~|   |~> SslTlsInbound  <~|   |<~ ByteString <~|   |
+  //                     +--+                +---+                    +---+                +---+
   val ws_request = WebSocketRequest(uri="ws://127.0.0.1:9001/mqtt", subprotocol = Some("mqtt"))
   val messageConverter: BidiFlow[ByteString, Message, Message, ByteString, NotUsed] =
     BidiFlow.fromFunctions[ByteString, Message, Message, ByteString] (
@@ -87,7 +118,9 @@ object dummyPublisher extends App {
       .run()
 
   // Connect to mqtt-Broker
-  mqttSink.offer(Command(Connect("alpakka", ConnectFlags.CleanSession)))
+  val username = "mqttPublisher"
+  val password = "ef039bc4-855d-4629-af67-53d0320ff331"
+  mqttSink.offer(Command(Connect("alpakka", ConnectFlags.CleanSession, username, password)))
 
   // Publish Data
   val publishingDone = Source(1 to 10)
@@ -95,6 +128,8 @@ object dummyPublisher extends App {
     .runForeach { x =>
       session ! Command(Publish(ControlPacketFlags.QoSAtLeastOnceDelivery, "/test/1", ByteString(s"ohi-$x")))
     }
+
+
 
   // Wait until all message are published
   publishingDone.onComplete(_ => {

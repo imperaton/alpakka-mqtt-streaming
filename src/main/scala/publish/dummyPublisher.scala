@@ -20,9 +20,19 @@ object dummyPublisher extends App {
   implicit val actorSystem: ActorSystem = ActorSystem("alpakka-samples")
   implicit val ec: ExecutionContext = actorSystem.dispatcher
 
+
+  val settings = MqttSessionSettings()
+  val session = ActorMqttClientSession(settings)
+
   /* **** TCP-Connection ***********************************************************/
   // Uncomment to use tcp connection
-  // val connection = Tcp().outgoingConnection("127.0.0.1", 1883)
+  /* val connection = Tcp().outgoingConnection("127.0.0.1", 1883)
+  // Create the flow `mqttFlow` which take a mqtt-command as input and responds with an event.
+  val mqttFlow: Flow[Command[Nothing], Either[MqttCodec.DecodeError, Event[Nothing]],
+                     Future[Tcp.OutgoingConnection]] =
+    Mqtt
+      .clientSessionFlow(session, ByteString("1"))
+      .joinMat(connection)(Keep.right)*/
   /* *******************************************************************************/
 
   /* **** Websocket-Connection *****************************************************/
@@ -38,6 +48,12 @@ object dummyPublisher extends App {
       .atopMat(ws_layer)(Keep.right)
       .atop(TLSPlacebo())
       .joinMat(Tcp().outgoingConnection(new InetSocketAddress("127.0.0.1", 9001)))(Keep.both)
+  // Create the flow `mqttFlow` which take a mqtt-command as input and responds with an event.
+  val mqttFlow: Flow[Command[Nothing], Either[MqttCodec.DecodeError, Event[Nothing]],
+    (Future[WebSocketUpgradeResponse], Future[Tcp.OutgoingConnection])] =
+    Mqtt
+      .clientSessionFlow(session, ByteString("1"))
+      .joinMat(connection)(Keep.right)
   /* *******************************************************************************/
 
   /* **** Test Websocket-Connection ************************************************/
@@ -53,15 +69,6 @@ object dummyPublisher extends App {
   // Await.ready(flowClosed, Duration.Inf)
   /* *******************************************************************************/
 
-
-  // Create the flow `mqttFlow` which take a mqtt-command as input and responds with an event.
-  val settings = MqttSessionSettings()
-  val session = ActorMqttClientSession(settings)
-  val mqttFlow: Flow[Command[Nothing], Either[MqttCodec.DecodeError, Event[Nothing]],
-                     (Future[WebSocketUpgradeResponse], Future[Tcp.OutgoingConnection])] =
-    Mqtt
-      .clientSessionFlow(session, ByteString("1"))
-      .joinMat(connection)(Keep.right)
 
   // Construct a source queue `mqttSink`. `mqttSinkDone` is a `Future` which completes with a List of events.
   val (mqttSink, mqttSinkDone) =

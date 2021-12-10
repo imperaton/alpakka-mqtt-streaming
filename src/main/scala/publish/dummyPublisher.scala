@@ -61,7 +61,7 @@ object dummyPublisher extends App {
   //                        +-------+
   //
   //    By adding one more bidirectional layer which translates ByteStrings to ws.Messages (and the other
-  //    way around we get a flow ByteString --> ByteString)
+  //    way around) we get a flow ByteString --> ByteString
   //
   //                     +--+                +---+                    +---+                +---+
   //        ByteString ~>|  |~> ws.Message ~>|   |~> SslTlsOutbound ~>|   |~> ByteString ~>|   |

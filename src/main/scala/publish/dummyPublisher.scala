@@ -68,11 +68,11 @@ object dummyPublisher extends App {
   //                     |  |                |(1)|                    |(2)|                |(3)|
   //        ByteString <~|  |<~ ws.Message <~|   |~> SslTlsInbound  <~|   |<~ ByteString <~|   |
   //                     +--+                +---+                    +---+                +---+
-  val ws_request = WebSocketRequest(uri="ws://127.0.0.1:9001/mqtt", subprotocol = Some("mqtt"))
   val messageConverter: BidiFlow[ByteString, Message, Message, ByteString, NotUsed] =
     BidiFlow.fromFunctions[ByteString, Message, Message, ByteString] (
           BinaryMessage.Strict,
           (msg : Message) => msg.asBinaryMessage.getStrictData)
+  val ws_request = WebSocketRequest(uri="ws://127.0.0.1:9001/mqtt", subprotocol = Some("mqtt"))
   val ws_layer = Http().webSocketClientLayer(ws_request)
   val connection: Flow[ByteString, ByteString, (Future[WebSocketUpgradeResponse], Future[Tcp.OutgoingConnection])] =
       messageConverter

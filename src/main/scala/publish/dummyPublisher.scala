@@ -123,12 +123,13 @@ object dummyPublisher extends App {
   mqttSink.offer(Command(Connect("alpakka", ConnectFlags.CleanSession, username, password)))
 
   // Publish Data
-  val publishingDone = Source(1 to 10)
-    .throttle(1, 1.second)
-    .runForeach { x =>
-      session ! Command(Publish(ControlPacketFlags.QoSAtLeastOnceDelivery, "/test/1", ByteString(s"ohi-$x")))
+  val publishingDone = Source(1 to 3)
+    .map { x =>
+      println(s"$x")
+      session ! Command(Publish(ControlPacketFlags.QoSAtLeastOnceDelivery, "/wrong/1", ByteString(s"ohi-$x")))
     }
-
+    .throttle(1, 1.second)
+    .runWith(Sink.ignore)
 
 
   // Wait until all message are published

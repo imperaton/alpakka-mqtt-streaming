@@ -4,7 +4,7 @@ import akka.NotUsed
 import akka.actor.ActorSystem
 import akka.stream.alpakka.mqtt.streaming._
 import akka.stream.alpakka.mqtt.streaming.scaladsl.{ActorMqttClientSession, Mqtt}
-import akka.stream.scaladsl.{BidiFlow, Flow, Keep, Sink, Source, TLSPlacebo, Tcp}
+import akka.stream.scaladsl.{BidiFlow, Flow, Keep, Sink, Source, TLS, TLSPlacebo, Tcp}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.ws.{BinaryMessage, Message, WebSocketRequest, WebSocketUpgradeResponse}
 import akka.stream._
@@ -13,6 +13,7 @@ import akka.util.ByteString
 import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.concurrent.duration.DurationInt
 import java.net.InetSocketAddress
+import javax.net.ssl.SSLContext
 
 object dummyPublisher extends App {
 
@@ -74,11 +75,26 @@ object dummyPublisher extends App {
           (msg : Message) => msg.asBinaryMessage.getStrictData)
   val ws_request = WebSocketRequest(uri="ws://127.0.0.1:9001/mqtt", subprotocol = Some("mqtt"))
   val ws_layer = Http().webSocketClientLayer(ws_request)
+
+  // Create tsl layer with default ssl context
+  /*val tlsLayer: BidiFlow[TLSProtocol.SslTlsOutbound, ByteString, ByteString, TLSProtocol.SslTlsInbound, NotUsed] =
+      val sslEngineFactory = () => {
+        val sslEngine = SSLContext.getDefault.createSSLEngine()
+        sslEngine.setUseClientMode(true)
+        sslEngine
+      }
+      TLS(sslEngineFactory, EagerClose)*/
+
+  // Create "placebo" tsl layer used for non-encrypted connections
+  val tlsLayer: BidiFlow[TLSProtocol.SslTlsOutbound, ByteString, ByteString, TLSProtocol.SslTlsInbound, NotUsed] =
+      TLSPlacebo()
+
   val connection: Flow[ByteString, ByteString, (Future[WebSocketUpgradeResponse], Future[Tcp.OutgoingConnection])] =
       messageConverter
       .atopMat(ws_layer)(Keep.right)
-      .atop(TLSPlacebo())
-      .joinMat(Tcp().outgoingConnection(new InetSocketAddress("127.0.0.1", 9001)))(Keep.both)
+      //.atop(TLSPlacebo())
+      .atop(tlsLayer)
+      .joinMat(Tcp().outgoingConnection(new InetSocketAddress("kafka-test.detact.de", 443)))(Keep.both)
   // Create the flow `mqttFlow` which take a mqtt-command as input and responds with an event.
   val mqttFlow: Flow[Command[Nothing], Either[MqttCodec.DecodeError, Event[Nothing]],
     (Future[WebSocketUpgradeResponse], Future[Tcp.OutgoingConnection])] =
@@ -126,7 +142,7 @@ object dummyPublisher extends App {
   val publishingDone = Source(1 to 3)
     .map { x =>
       println(s"$x")
-      session ! Command(Publish(ControlPacketFlags.QoSAtLeastOnceDelivery, "/wrong/1", ByteString(s"ohi-$x")))
+      session ! Command(Publish(ControlPacketFlags.QoSAtLeastOnceDelivery, "/test/1", ByteString(s"ohi-$x")))
     }
     .throttle(1, 1.second)
     .runWith(Sink.ignore)

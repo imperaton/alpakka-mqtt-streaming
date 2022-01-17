@@ -133,13 +133,20 @@ object dummyPublisher extends App {
       .toMat(Sink.seq)(Keep.both)
       .run()
 
+  mqttSinkDone.onComplete (events => {
+    println(s"List of all Events: $events")
+    mqttSink.complete()
+    mqttSink.watchCompletion().foreach(_ => session.shutdown())
+    actorSystem.terminate()
+  })
+
   // Connect to mqtt-Broker
   val username = "mqttPublisher"
   val password = "ef039bc4-855d-4629-af67-53d0320ff331"
   mqttSink.offer(Command(Connect("alpakka", ConnectFlags.CleanSession, username, password)))
 
   // Publish Data
-  val publishingDone = Source(1 to 3)
+  val publishingDone = Source(1 to 10)
     .map { x =>
       println(s"$x")
       session ! Command(Publish(ControlPacketFlags.QoSAtLeastOnceDelivery, "/test/1", ByteString(s"ohi-$x")))
@@ -151,12 +158,6 @@ object dummyPublisher extends App {
   // Wait until all message are published
   publishingDone.onComplete(_ => {
     mqttSink.offer(Command(Disconnect))  // This leads to completion of `mqttSinkDone`
-    mqttSinkDone.onComplete (events => {
-      println(s"List of all Events: $events")
-      mqttSink.complete()
-      mqttSink.watchCompletion().foreach(_ => session.shutdown())
-      actorSystem.terminate()
-    })
   })
 
 }

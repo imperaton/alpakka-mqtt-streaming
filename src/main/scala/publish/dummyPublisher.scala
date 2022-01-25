@@ -92,9 +92,8 @@ object dummyPublisher extends App {
   val connection: Flow[ByteString, ByteString, (Future[WebSocketUpgradeResponse], Future[Tcp.OutgoingConnection])] =
       messageConverter
       .atopMat(ws_layer)(Keep.right)
-      //.atop(TLSPlacebo())
       .atop(tlsLayer)
-      .joinMat(Tcp().outgoingConnection(new InetSocketAddress("kafka-test.detact.de", 443)))(Keep.both)
+      .joinMat(Tcp().outgoingConnection(new InetSocketAddress("127.0.0.1", 9001)))(Keep.both)
   // Create the flow `mqttFlow` which take a mqtt-command as input and responds with an event.
   val mqttFlow: Flow[Command[Nothing], Either[MqttCodec.DecodeError, Event[Nothing]],
     (Future[WebSocketUpgradeResponse], Future[Tcp.OutgoingConnection])] =

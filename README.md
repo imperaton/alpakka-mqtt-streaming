@@ -1,4 +1,4 @@
-# alpakka-mqtt-streaming
+# alpakka-mqtt-streaming-example
 
 This respository implements a simple mqtt client using the `mqtt.streaming`-backend from alpakka.
 
